@@ -1,12 +1,14 @@
 #include <Servo.h>
 
-// Motor pins
+// Motor pins (corrected ENB to PWM pin)
+const int ENA = 6;   // PWM for left motors (PWM capable)
+const int ENB = 5;   // PWM for right motors (changed to PWM pin 5)
 const int IN1 = 2;
 const int IN2 = 3;
 const int IN3 = 4;
-const int IN4 = 5;
+const int IN4 = 8;   // Changed from 5 to free up PWM pin
 
-// Ultrasonic pins
+// Ultrasonic sensor pins
 const int trigPin = 10;
 const int echoPin = 11;
 
@@ -14,70 +16,92 @@ const int echoPin = 11;
 Servo scanServo;
 const int servoPin = 9;
 
-// Distance threshold (in cm)
+// Speed (0 to 255)
+int speedValue = 150;
+
+// Safe distance to obstacle (in cm)
 const int safeDistance = 20;
 
 void setup() {
+  // Motor pins
+  pinMode(ENA, OUTPUT);
+  pinMode(ENB, OUTPUT);
   pinMode(IN1, OUTPUT);
   pinMode(IN2, OUTPUT);
   pinMode(IN3, OUTPUT);
-  pinMode(IN4, OUTPUT);
+  pinMode(IN4, OUTPUT);  // New pin for IN4
 
+  // Ultrasonic pins
   pinMode(trigPin, OUTPUT);
   pinMode(echoPin, INPUT);
 
+  // Servo setup
   scanServo.attach(servoPin);
-  scanServo.write(90); // Center position
+  scanServo.write(90); // Face forward
 
   Serial.begin(9600);
 }
 
 void loop() {
-  int frontDist = getDistanceAtAngle(90);
-  Serial.print("Front: "); Serial.println(frontDist);
+  int front = getDistanceAtAngle(90);
 
-  if (frontDist > safeDistance) {
+  if (front > safeDistance) {
+    Serial.println("Moving Forward");
     moveForward();
   } else {
+    Serial.println("Stopping and Checking");
     stopRobot();
 
-    int leftDist = getDistanceAtAngle(150);
-    delay(300);
-    int rightDist = getDistanceAtAngle(30);
-    delay(300);
+    int left = getDistanceAtAngle(150);
+    delay(200);
+    int right = getDistanceAtAngle(30);
+    delay(200);
 
-    if (leftDist > rightDist) {
+    // Reset servo to forward position
+    scanServo.write(90);
+    
+    if (left > right && left > safeDistance) {
+      Serial.println("Turning Left");
       turnLeft();
       delay(500);
-    } else {
+      stopRobot();  // Stop after turning
+    } else if (right > safeDistance) {
+      Serial.println("Turning Right");
       turnRight();
       delay(500);
+      stopRobot();  // Stop after turning
+    } else {
+      Serial.println("No clear path - moving backward");
+      moveBackward();
+      delay(500);
+      stopRobot();
     }
   }
-
   delay(100);
 }
 
-// Read distance at a servo angle
 int getDistanceAtAngle(int angle) {
   scanServo.write(angle);
-  delay(300); // Wait for servo to move
-  long duration, distance;
+  delay(250);  // Allow servo to reach position
+
   digitalWrite(trigPin, LOW);
   delayMicroseconds(2);
   digitalWrite(trigPin, HIGH);
   delayMicroseconds(10);
   digitalWrite(trigPin, LOW);
 
-  duration = pulseIn(echoPin, HIGH, 20000); // timeout 20ms
-  distance = duration * 0.034 / 2;
+  long duration = pulseIn(echoPin, HIGH, 38000);  // Increased timeout for reliability
+  int distance = duration * 0.034 / 2;
 
-  if (distance == 0 || distance > 200) return 200;
+  // Handle invalid readings
+  if (distance <= 0 || distance > 200) return 200;
   return distance;
 }
 
-// Movement functions
+// Movement Functions
 void moveForward() {
+  analogWrite(ENA, speedValue);
+  analogWrite(ENB, speedValue);
   digitalWrite(IN1, HIGH);
   digitalWrite(IN2, LOW);
   digitalWrite(IN3, HIGH);
@@ -85,6 +109,8 @@ void moveForward() {
 }
 
 void turnLeft() {
+  analogWrite(ENA, speedValue);
+  analogWrite(ENB, speedValue);
   digitalWrite(IN1, LOW);
   digitalWrite(IN2, HIGH);
   digitalWrite(IN3, HIGH);
@@ -92,6 +118,8 @@ void turnLeft() {
 }
 
 void turnRight() {
+  analogWrite(ENA, speedValue);
+  analogWrite(ENB, speedValue);
   digitalWrite(IN1, HIGH);
   digitalWrite(IN2, LOW);
   digitalWrite(IN3, LOW);
@@ -99,8 +127,20 @@ void turnRight() {
 }
 
 void stopRobot() {
+  analogWrite(ENA, 0);
+  analogWrite(ENB, 0);
   digitalWrite(IN1, LOW);
   digitalWrite(IN2, LOW);
   digitalWrite(IN3, LOW);
   digitalWrite(IN4, LOW);
+}
+
+// Added backward movement for no clear path
+void moveBackward() {
+  analogWrite(ENA, speedValue);
+  analogWrite(ENB, speedValue);
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, HIGH);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, HIGH);
 }
