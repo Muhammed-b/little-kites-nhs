@@ -1,0 +1,106 @@
+#include <Servo.h>
+
+// Motor pins
+const int IN1 = 2;
+const int IN2 = 3;
+const int IN3 = 4;
+const int IN4 = 5;
+
+// Ultrasonic pins
+const int trigPin = 10;
+const int echoPin = 11;
+
+// Servo
+Servo scanServo;
+const int servoPin = 9;
+
+// Distance threshold (in cm)
+const int safeDistance = 20;
+
+void setup() {
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
+  pinMode(IN3, OUTPUT);
+  pinMode(IN4, OUTPUT);
+
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
+
+  scanServo.attach(servoPin);
+  scanServo.write(90); // Center position
+
+  Serial.begin(9600);
+}
+
+void loop() {
+  int frontDist = getDistanceAtAngle(90);
+  Serial.print("Front: "); Serial.println(frontDist);
+
+  if (frontDist > safeDistance) {
+    moveForward();
+  } else {
+    stopRobot();
+
+    int leftDist = getDistanceAtAngle(150);
+    delay(300);
+    int rightDist = getDistanceAtAngle(30);
+    delay(300);
+
+    if (leftDist > rightDist) {
+      turnLeft();
+      delay(500);
+    } else {
+      turnRight();
+      delay(500);
+    }
+  }
+
+  delay(100);
+}
+
+// Read distance at a servo angle
+int getDistanceAtAngle(int angle) {
+  scanServo.write(angle);
+  delay(300); // Wait for servo to move
+  long duration, distance;
+  digitalWrite(trigPin, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+
+  duration = pulseIn(echoPin, HIGH, 20000); // timeout 20ms
+  distance = duration * 0.034 / 2;
+
+  if (distance == 0 || distance > 200) return 200;
+  return distance;
+}
+
+// Movement functions
+void moveForward() {
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, HIGH);
+  digitalWrite(IN4, LOW);
+}
+
+void turnLeft() {
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, HIGH);
+  digitalWrite(IN3, HIGH);
+  digitalWrite(IN4, LOW);
+}
+
+void turnRight() {
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, HIGH);
+}
+
+void stopRobot() {
+  digitalWrite(IN1, LOW);
+  digitalWrite(IN2, LOW);
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, LOW);
+}
